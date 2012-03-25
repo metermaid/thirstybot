@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+{% block title %}
+  {% if request.endpoint == 'public_recommendations' %}
+    Top Drinks
+  {% elif request.endpoint == 'user_recommendations' %}
+    Recommendations for {{ profile_user.username }}
+  {% else %}
+    Your Recommended Drinks
+  {% endif %}
+{% endblock %}
+{% block body %}
+  <h2>{{ self.title() }}</h2>
+  <table>
+  {% if recommendations %}
+  {% for recommendation in recommendations %}
+    <tr>
+    <td><a href="/drink/{{recommendation.drink_id}}">{{ recommendation.name }}</a></td>
+    <td>{{ recommendation.description }}</td>
+  {% if request.endpoint == 'public_recommendations' %}
+    <td>{{ recommendation.pop('avg(rating)') }}</td> <!-- retarded error comes up -->
+  {% endif %}
+    <td>
+    <a href="/drink/{{recommendation.drink_id}}/rate/5">5</a> &nbsp; 
+    <a href="/drink/{{recommendation.drink_id}}/rate/4">4</a> &nbsp; 
+    <a href="/drink/{{recommendation.drink_id}}/rate/3">3</a> &nbsp; 
+    <a href="/drink/{{recommendation.drink_id}}/rate/2">2</a> &nbsp; 
+    <a href="/drink/{{recommendation.drink_id}}/rate/1">1</a> &nbsp; 
+    </td>
+    </tr>
+  {% endfor %}
+  {% else %}
+  <td>No recommendations for you.</td>
+  {% endif %}
+  </table>
+{% endblock %}

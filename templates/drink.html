@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% block title %}{{drink.name}}{% endblock %}
+{% block body %}
+  <h2>{{drink.name}}</h2>
+
+    <p>{{ drink.description }}</p>
+    <p>Rate this drink: <br />
+    <a href="/drink/{{drink.drink_id}}/rate/5">5</a> &nbsp; 
+    <a href="/drink/{{drink.drink_id}}/rate/4">4</a> &nbsp; 
+    <a href="/drink/{{drink.drink_id}}/rate/3">3</a> &nbsp; 
+    <a href="/drink/{{drink.drink_id}}/rate/2">2</a> &nbsp; 
+    <a href="/drink/{{drink.drink_id}}/rate/1">1</a> &nbsp; 
+    </p>
+  <h3>Similar Drinks</h3>
+  <table>
+  {% for recommendation in recommendations %}
+    <tr>
+    <td><a href="/drink/{{recommendation[1].drink_id}}">{{ recommendation[1].name }}</a></td>
+    <td>{{ recommendation[1].description }}</td>
+    </tr>
+  {% endfor %}
+  </table>
+{% endblock %}
+
