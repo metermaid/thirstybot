@@ -4,13 +4,27 @@
     Top Drinks
   {% elif request.endpoint == 'user_recommendations' %}
     Recommendations for {{ profile_user.username }}
+  {% elif request.endpoint == 'all_drinks' %}
+    All Drinks
   {% else %}
     Your Recommended Drinks
   {% endif %}
 {% endblock %}
 {% block body %}
   <h2>{{ self.title() }}</h2>
+  {% if request.endpoint == 'recommendations' %}
+  <h3>Recommendations based on Other Users' Ratings</h3>
+  {% endif %}
+
   <table>
+  	<thead>
+		<th>Name</th>
+		<th>Description</th>
+  		{% if request.endpoint == 'public_recommendations' %}
+		<th>Average Rating</th>
+		{% endif %}
+		<th>Rate this Drink</th>
+  	</thead>
   {% if recommendations %}
   {% for recommendation in recommendations %}
     <tr>
@@ -20,11 +34,11 @@
     <td>{{ recommendation.pop('avg(rating)') }}</td> <!-- retarded error comes up -->
   {% endif %}
     <td>
-    <a href="/drink/{{recommendation.drink_id}}/rate/5">5</a> &nbsp; 
-    <a href="/drink/{{recommendation.drink_id}}/rate/4">4</a> &nbsp; 
-    <a href="/drink/{{recommendation.drink_id}}/rate/3">3</a> &nbsp; 
-    <a href="/drink/{{recommendation.drink_id}}/rate/2">2</a> &nbsp; 
-    <a href="/drink/{{recommendation.drink_id}}/rate/1">1</a> &nbsp; 
+    <a href="/drink/{{recommendation.drink_id}}/rate/5">5</a> &nbsp;
+    <a href="/drink/{{recommendation.drink_id}}/rate/4">4</a> &nbsp;
+    <a href="/drink/{{recommendation.drink_id}}/rate/3">3</a> &nbsp;
+    <a href="/drink/{{recommendation.drink_id}}/rate/2">2</a> &nbsp;
+    <a href="/drink/{{recommendation.drink_id}}/rate/1">1</a> &nbsp;
     </td>
     </tr>
   {% endfor %}
@@ -32,4 +46,33 @@
   <td>No recommendations for you.</td>
   {% endif %}
   </table>
+  {% if request.endpoint == 'recommendations' %}
+
+  <h3>Recommendations based on Frequent Itemset</h3>
+    <table>
+    	<thead>
+  		<th>Name</th>
+  		<th>Description</th>
+  		<th>Rating</th>
+    	</thead>
+    {% if recommendations %}
+    {% for recommendation in recommendations2 %}
+      <tr>
+      <td><a href="/drink/{{recommendation.drink_id}}">{{ recommendation.name }}</a></td>
+      <td>{{ recommendation.description }}</td>
+      <td>
+      <a href="/drink/{{recommendation.drink_id}}/rate/5">5</a> &nbsp;
+      <a href="/drink/{{recommendation.drink_id}}/rate/4">4</a> &nbsp;
+      <a href="/drink/{{recommendation.drink_id}}/rate/3">3</a> &nbsp;
+      <a href="/drink/{{recommendation.drink_id}}/rate/2">2</a> &nbsp;
+      <a href="/drink/{{recommendation.drink_id}}/rate/1">1</a> &nbsp;
+      </td>
+      </tr>
+    {% endfor %}
+    {% else %}
+    <td>No recommendations for you.</td>
+    {% endif %}
+    </table>
+  {% endif %}
+
 {% endblock %}

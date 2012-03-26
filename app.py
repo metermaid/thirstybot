@@ -21,7 +21,7 @@ from math import sqrt
 
 
 # configuration
-DATABASE = '/tmp/thirsty.db'
+DATABASE = 'thirsty.db'
 PER_PAGE = 30
 DEBUG = True
 SECRET_KEY = 'development key'
@@ -31,26 +31,9 @@ app = Flask(__name__)
 app.config.from_object(__name__)
 app.config.from_envvar('THIRSTYBOT_SETTINGS', silent=True)
 
-#
-#  FILTERINGDATA.py
-#
-#  Code file for the book Programmer's Guide to Data Mining
-#  http://guidetodatamining.com
-#  Ron Zacharski
-#
-
-
-users = {"Angelica": {"Blues Traveler": 3.5, "Broken Bells": 2.0, "Norah Jones": 4.5, "Phoenix": 5.0, "Slightly Stoopid": 1.5, "The Strokes": 2.5, "Vampire Weekend": 2.0},
-         "Bill":{"Blues Traveler": 2.0, "Broken Bells": 3.5, "Deadmau5": 4.0, "Phoenix": 2.0, "Slightly Stoopid": 3.5, "Vampire Weekend": 3.0},
-         "Chan": {"Blues Traveler": 5.0, "Broken Bells": 1.0, "Deadmau5": 1.0, "Norah Jones": 3.0, "Phoenix": 5, "Slightly Stoopid": 1.0},
-         "Dan": {"Blues Traveler": 3.0, "Broken Bells": 4.0, "Deadmau5": 4.5, "Phoenix": 3.0, "Slightly Stoopid": 4.5, "The Strokes": 4.0, "Vampire Weekend": 2.0},
-         "Hailey": {"Broken Bells": 4.0, "Deadmau5": 1.0, "Norah Jones": 4.0, "The Strokes": 4.0, "Vampire Weekend": 1.0},
-         "Jordyn":  {"Broken Bells": 4.5, "Deadmau5": 4.0, "Norah Jones": 5.0, "Phoenix": 5.0, "Slightly Stoopid": 4.5, "The Strokes": 4.0, "Vampire Weekend": 4.0},
-         "Sam": {"Blues Traveler": 5.0, "Broken Bells": 2.0, "Norah Jones": 3.0, "Phoenix": 5.0, "Slightly Stoopid": 4.0, "The Strokes": 5.0},
-         "Veronica": {"Blues Traveler": 3.0, "Norah Jones": 5.0, "Phoenix": 4.0, "Slightly Stoopid": 2.5, "The Strokes": 3.0}
-        }
-
-
+#new styffsd
+frequencies = {}
+deviations = {}
 
 def manhattan(rating1, rating2):
     """Computes the Manhattan distance. Both rating1 and rating2 are dictionaries
@@ -82,14 +65,14 @@ def formatUserDict(list):
 def computeNearestNeighbor(userID):
     """creates a sorted list of items based on their distance to givenItem"""
     
-    userRatings = query_db('select drink_id, rating from rating where user_id = ?', [userID])
+    userRatings = query_db('select drink_id, rating from ratings where user_id = ?', [userID])
     userRatings = formatUserDict(userRatings)
     
-    list = query_db('select user_id from user where user_id != ?', [userID])
+    list = query_db('select user_id from users where user_id != ?', [userID])
 
     distances = []
     for item in list:
-        currentRatings = query_db('select drink_id, rating from rating where user_id = ?', [item['user_id']])
+        currentRatings = query_db('select drink_id, rating from ratings where user_id = ?', [item['user_id']])
         currentRatings = formatUserDict(currentRatings)
 
         distance = manhattan(userRatings, currentRatings)
@@ -106,8 +89,8 @@ def recommendBasedOnUsers(userID):
 
     recommendations = []
     # now find bands neighbor rated that user didn't
-    neighborRatings = query_db('select drink_id from rating where user_id = ?', [nearest['user_id']])
-    userRatings = query_db('select drink_id from rating where user_id = ?', [userID])
+    neighborRatings = query_db('select drink_id from ratings where user_id = ?', [nearest['user_id']])
+    userRatings = query_db('select drink_id from ratings where user_id = ?', [userID])
 
     for drink in neighborRatings:
         if not drink in userRatings:
@@ -118,19 +101,73 @@ def recommendBasedOnUsers(userID):
 def recommendBasedOnDrink(drinkID):
     """creates a sorted list of items based on their distance to givenItem"""
     
-    drinkRatings = query_db('select user_id, rating from rating where drink_id = ?', [drinkID])
+    drinkRatings = query_db('select user_id, rating from ratings where drink_id = ?', [drinkID])
     drinkRatings = formatDrinkDict(drinkRatings)
-    list = query_db('select * from drink where drink_id != ?', [drinkID])
+    list = query_db('select * from drinks where drink_id != ?', [drinkID])
 
     distances = []
     for item in list:
-        currentRatings = query_db('select user_id, rating from rating where drink_id = ?', [item['drink_id']])
+        currentRatings = query_db('select user_id, rating from ratings where drink_id = ?', [item['drink_id']])
         currentRatings = formatDrinkDict(currentRatings)
         distance = manhattan(drinkRatings, currentRatings)
         distances.append((distance, item))
     # sort based on distance -- closest first
     distances.sort()
     return distances[0:2]
+    
+def computeDeviations():
+	#for each person in the data:
+	#    get their ratings
+  list = query_db('select user_id from users')
+  
+  distances = []
+  for item in list:
+    ratings = formatUserDict(query_db('select drink_id, rating from ratings where user_id = ?', [item['user_id']]))
+    for (item, rating) in ratings.items():
+        frequencies.setdefault(item, {})
+        deviations.setdefault(item, {})
+        #for each item2 & rating2 in that set of ratings:
+        for (item2, rating2) in ratings.items():
+            if item != item2:
+                #add the difference between the ratings to our computation
+                frequencies[item].setdefault(item2, 0)
+                deviations[item].setdefault(item2, 0.0)
+                frequencies[item][item2] += 1
+                deviations[item][item2] += rating - rating2
+	
+	for (item, ratings) in deviations.items():
+	    for item2 in ratings:
+	        ratings[item2] /= frequencies[item][item2]   
+
+    
+def recommendBasedOnItemSet(userID):
+	recommendations = {}
+	frequencies1 = {}
+	userRatings = formatUserDict(query_db('select drink_id, rating from ratings where user_id = ?', [userID]))
+	
+	computeDeviations()
+	
+	print "When you knock on my door"   
+	# for every item and rating in the user's recommendations
+	for (userItem, userRating) in userRatings.items():
+	    #for every item in our dataset that the user didn't rate
+	    print "LOL"
+	    for (diffItem, diffRatings) in deviations.items():
+	    	if(diffItem not in userRatings and userItem in deviations[diffItem]):
+				freq = frequencies[diffItem][userItem]
+				recommendations.setdefault(diffItem, 0.0)
+				frequencies1.setdefault(diffItem, 0)
+				# add to the running sum representing the numerator of the formula
+				recommendations[diffItem] += (diffRatings[userItem] + userRating) * freq
+				# keep a running sum of the frequency of diffitem
+				frequencies1[diffItem] += freq
+	print "We'll be waiting for you"  
+	recommendations =  [(k, v / frequencies1[k]) for (k, v) in recommendations.items()]
+	# finally sort and return
+	recommendations.sort(key=lambda artistTuple: artistTuple[1], reverse = True)
+	recommendations =  [k for (k, v) in recommendations]	 
+	
+	return recommendations
 
 def connect_db():
     """Returns a new connection to the database."""
@@ -155,7 +192,7 @@ def query_db(query, args=(), one=False):
 
 def get_user_id(username):
     """Convenience method to look up the id for a username."""
-    rv = g.db.execute('select user_id from user where username = ?',
+    rv = g.db.execute('select user_id from users where username = ?',
                        [username]).fetchone()
     return rv[0] if rv else None
 
@@ -179,7 +216,7 @@ def before_request():
     g.db = connect_db()
     g.user = None
     if 'user_id' in session:
-        g.user = query_db('select * from user where user_id = ?',
+        g.user = query_db('select * from users where user_id = ?',
                           [session['user_id']], one=True)
 
 
@@ -199,23 +236,33 @@ def recommendations():
     if not g.user:
         return redirect(url_for('public_recommendations'))
     recAlg = recommendBasedOnUsers(session['user_id'])
+    recAlg2 = recommendBasedOnItemSet(session['user_id'])
     recs = []
+    recs2 = []
+    
     for recommendation in recAlg:
-        recs.append(query_db('select name, description, avg(rating), drink_id from rating natural join drink where drink_id = ? group by rating', [recommendation['drink_id']]))
-    return render_template('recommendations.html', recommendations=recs)
+        recs.extend(query_db('select name, description, drink_id from drinks where drink_id = ?', [recommendation['drink_id']]))
+    for recommendation in recAlg2:
+        recs2.extend(query_db('select name, description, drink_id from drinks where drink_id = ?', [recommendation]))
+    return render_template('recommendations.html', recommendations=recs, recommendations2=recs2)
 
 
 @app.route('/public')
 def public_recommendations():
     """Displays a random selection of highly rated drinks."""
-    recs = query_db('select name, description, avg(rating), drink_id from rating natural join drink group by rating order by rating')
+    recs = query_db('select name, description, avg(rating), drink_id from ratings natural join drinks group by rating order by rating desc')
     return render_template('recommendations.html', recommendations=recs)
 
+@app.route('/all')
+def all_drinks():
+    """Displays a random selection of highly rated drinks."""
+    recs = query_db('select name, description, drink_id from drinks')
+    return render_template('recommendations.html', recommendations=recs)
 
 @app.route('/user/<username>')
 def user_recommendations(username):
     """Displays recommendations for a user."""
-    profile_user = query_db('select * from user where username = ?',
+    profile_user = query_db('select * from users where username = ?',
                             [username], one=True)
     if profile_user is None:
         abort(404)
@@ -225,7 +272,7 @@ def user_recommendations(username):
             
 @app.route('/drink/<drink_id>')
 def display_drink(drink_id):
-    drink = query_db('select * from drink where drink_id = ?',
+    drink = query_db('select * from drinks where drink_id = ?',
                             [drink_id], one=True)
     recs = recommendBasedOnDrink(drink_id)                      
     if drink is None:
@@ -240,11 +287,11 @@ def rate(drink_id, rating):
         abort(401)
     if drink_id is None:
         abort(404)
-    g.db.execute('insert into rate (user_id, drink_id, rating) values (?, ?, ?)',
+    g.db.execute('insert into ratings (user_id, drink_id, rating) values (?, ?, ?)',
                 [session['user_id'], drink_id, rating])
     g.db.commit()
     flash('Rating has been successfully made!')
-    return redirect(url_for('user_recommendations', username=username))
+    return redirect(url_for('recommendations'))
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -254,7 +301,7 @@ def login():
         return redirect(url_for('recommendations'))
     error = None
     if request.method == 'POST':
-        user = query_db('''select * from user where
+        user = query_db('''select * from users where
             username = ?''', [request.form['username']], one=True)
         if user is None:
             error = 'Invalid username'
@@ -268,6 +315,23 @@ def login():
     return render_template('login.html', error=error)
 
 
+@app.route('/add_drink', methods=['GET', 'POST'])
+def add_drink():
+    error = None
+    if request.method == 'POST':
+        if not request.form['name']:
+            error = 'You have to enter a name'
+        elif not request.form['description']:
+            error = 'You have to enter a description'
+        else:
+            g.db.execute('''insert into drinks (
+                name, description) values (?, ?)''',
+                [request.form['name'], request.form['description']])
+            g.db.commit()
+            flash('You added a drink you alcoholic!!!!')
+            return redirect(url_for('recommendations'))
+    return render_template('add_drink.html', error=error)
+    
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     """Registers the user."""
@@ -287,7 +351,7 @@ def register():
         elif get_user_id(request.form['username']) is not None:
             error = 'The username is already taken'
         else:
-            g.db.execute('''insert into user (
+            g.db.execute('''insert into users (
                 username, email, pw_hash) values (?, ?, ?)''',
                 [request.form['username'], request.form['email'],
                  generate_password_hash(request.form['password'])])

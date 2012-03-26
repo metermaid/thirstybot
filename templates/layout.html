@@ -14,7 +14,12 @@
 <body lang="en">
 <div id="container">
   <header>
-    <a href="{{ url_for('recommendations') }}"><h1>Thirstybot</h1></a>
+    <a href="{{ url_for('recommendations') }}">
+    <hgroup>
+    <h1>Thirstybot</h1>
+    <h2>"It's on Tuesdays!"</h2>
+    </hgroup></a>
+
   </header>
   {% with flashes = get_flashed_messages() %}
     <section id="flashes">
@@ -31,13 +36,17 @@
   {% block body %}{% endblock %}
   </section>
   <footer>
-    &copy; 2012 Rita Cheng and David Clarke | 
+    &copy; 2012 Rita Cheng and David Clarke |
     {% if g.user %}
       <a href="{{ url_for('recommendations') }}">my recommendations</a> |
       <a href="{{ url_for('public_recommendations') }}">top drinks</a> |
+      <a href="{{ url_for('all_drinks') }}">all drinks</a> |
+      <a href="{{ url_for('add_drink') }}">add drink</a> |
       <a href="{{ url_for('logout') }}">sign out [{{ g.user.username }}]</a>
     {% else %}
       <a href="{{ url_for('public_recommendations') }}">top drinks</a> |
+      <a href="{{ url_for('all_drinks') }}">all drinks</a> |
+      <a href="{{ url_for('add_drink') }}">add drink</a> |
       <a href="{{ url_for('register') }}">sign up</a> |
       <a href="{{ url_for('login') }}">sign in</a>
     {% endif %}

@@ -5,13 +5,13 @@
 
     <p>{{ drink.description }}</p>
     <p>Rate this drink: <br />
-    <a href="/drink/{{drink.drink_id}}/rate/5">5</a> &nbsp; 
-    <a href="/drink/{{drink.drink_id}}/rate/4">4</a> &nbsp; 
-    <a href="/drink/{{drink.drink_id}}/rate/3">3</a> &nbsp; 
-    <a href="/drink/{{drink.drink_id}}/rate/2">2</a> &nbsp; 
-    <a href="/drink/{{drink.drink_id}}/rate/1">1</a> &nbsp; 
+    <a href="/drink/{{drink.drink_id}}/rate/5">5</a> &nbsp;
+    <a href="/drink/{{drink.drink_id}}/rate/4">4</a> &nbsp;
+    <a href="/drink/{{drink.drink_id}}/rate/3">3</a> &nbsp;
+    <a href="/drink/{{drink.drink_id}}/rate/2">2</a> &nbsp;
+    <a href="/drink/{{drink.drink_id}}/rate/1">1</a> &nbsp;
     </p>
-  <h3>Similar Drinks</h3>
+  <h3>Other Users also Liked These Drinks</h3>
   <table>
   {% for recommendation in recommendations %}
     <tr>
