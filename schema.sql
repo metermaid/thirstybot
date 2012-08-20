@@ -17,22 +17,6 @@ drop table if exists drinks;
 create table drinks (
   drink_id integer primary key autoincrement,
   name string not null,
+  photoURL string not null,
   description string not null
-);
-
-drop table if exists recipes;
-create table recipes (
-  drink_id integer not null,
-  ingredient_id integer not null,
-  amount string not null
-);
-drop table if exists ingredients;
-create table ingredients (
-  ingredient_id integer primary key autoincrement,
-  name string not null
-);
-drop table if exists cabinets;
-create table cabinets (
-  user_id integer not null,
-  ingredient_id integer not null
 );

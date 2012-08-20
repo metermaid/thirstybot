@@ -18,27 +18,29 @@
 
   <table>
   	<thead>
+		<th>Thumbnail</th>
 		<th>Name</th>
 		<th>Description</th>
   		{% if request.endpoint == 'public_recommendations' %}
-		<th>Average Rating</th>
+		<th>Average Rating (/5)</th>
 		{% endif %}
-		<th>Rate this Drink</th>
+		<th>Rate this Drink (/5)</th>
   	</thead>
   {% if recommendations %}
   {% for recommendation in recommendations %}
     <tr>
-    <td><a href="/drink/{{recommendation.drink_id}}">{{ recommendation.name }}</a></td>
+    <td><a href="/drink/{{recommendation.id}}"><img src="{{ recommendation.photoURL }}" alt="{{ recommendation.name }}" class="thumb" /></a></td>
+    <td><a href="/drink/{{recommendation.id}}">{{ recommendation.name }}</a></td>
     <td>{{ recommendation.description }}</td>
   {% if request.endpoint == 'public_recommendations' %}
-    <td>{{ recommendation.pop('avg(rating)') }}</td> <!-- retarded error comes up -->
+    <td>{{ recommendation.sum/recommendation.count }}</td> <!-- retarded error comes up -->
   {% endif %}
     <td>
-    <a href="/drink/{{recommendation.drink_id}}/rate/5">5</a> &nbsp;
-    <a href="/drink/{{recommendation.drink_id}}/rate/4">4</a> &nbsp;
-    <a href="/drink/{{recommendation.drink_id}}/rate/3">3</a> &nbsp;
-    <a href="/drink/{{recommendation.drink_id}}/rate/2">2</a> &nbsp;
-    <a href="/drink/{{recommendation.drink_id}}/rate/1">1</a> &nbsp;
+    <a href="/drink/{{recommendation.id}}/rate/5">5</a> &nbsp;
+    <a href="/drink/{{recommendation.id}}/rate/4">4</a> &nbsp;
+    <a href="/drink/{{recommendation.id}}/rate/3">3</a> &nbsp;
+    <a href="/drink/{{recommendation.id}}/rate/2">2</a> &nbsp;
+    <a href="/drink/{{recommendation.id}}/rate/1">1</a> &nbsp;
     </td>
     </tr>
   {% endfor %}

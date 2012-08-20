@@ -1,0 +1,17 @@
+{% extends "layout.html" %}
+{% block title %}Add drink{% endblock %}
+{% block body %}
+  <h2>Add drink</h2>
+  {% if error %}<div class=error><strong>Error:</strong> {{ error }}</div>{% endif %}
+  <form action="" method=post>
+    <dl>
+      <dt>Name:
+      <dd><input type=text name=name size=30 value="{{ request.form.name }}">
+      <dt>Description:
+      <dd><input type=text name=description size=30 value="{{ request.form.description }}">
+      <dt>Photo URL:
+      <dd><input type=text name=photoURL size=30 value="{{ request.form.photoURL }}">
+    </dl>
+    <div class=actions><input type=submit value="Add Drink"></div>
+  </form>
+{% endblock %}

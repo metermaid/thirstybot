@@ -5,12 +5,11 @@
 
     I'M SO THIRSTY.
 
-    :copyright: (c) 2010 by Armin Ronacher.
-    :license: BSD, see LICENSE for more details.
 """
 from __future__ import with_statement
 import time
 from sqlite3 import dbapi2 as sqlite3
+
 from hashlib import md5
 from datetime import datetime
 from contextlib import closing
@@ -20,9 +19,21 @@ from werkzeug import check_password_hash, generate_password_hash
 from math import sqrt
 
 
-# configuration
-DATABASE = 'thirsty.db'
+# flask-peewee bindings
+from flask_peewee.db import Database
+from flask_peewee.auth import Auth
+
+from peewee import *
+
+# configure our database
+DATABASE = {
+    'name': 'thirsty.db',
+    'engine': 'peewee.SqliteDatabase',
+}
 PER_PAGE = 30
+DATABASE2 = 'thirsty.db'
+
+# configuration
 DEBUG = True
 SECRET_KEY = 'development key'
 
@@ -31,9 +42,27 @@ app = Flask(__name__)
 app.config.from_object(__name__)
 app.config.from_envvar('THIRSTYBOT_SETTINGS', silent=True)
 
-#new styffsd
+# instantiate the db wrapper
+db = Database(app)
+
+
+#new stuff
 frequencies = {}
 deviations = {}
+
+# create an Auth object for use with our flask app and database wrapper
+auth = Auth(app, db)
+
+class Drink(db.Model):
+    name = CharField(unique = True)
+    photoURL = CharField()
+    description = TextField() 
+    
+class Rating(db.Model):
+    user_id = ForeignKeyField(auth.User)
+    drink_id = ForeignKeyField(Drink)
+    rating = IntegerField()
+
 
 def manhattan(rating1, rating2):
     """Computes the Manhattan distance. Both rating1 and rating2 are dictionaries
@@ -53,26 +82,29 @@ def manhattan(rating1, rating2):
 def formatDrinkDict(list):
     newDict = {}
     for item in list:
-        newDict[item['user_id']] = item['rating']
+        newDict[item.user_id] = item.rating
     return newDict
 
 def formatUserDict(list):
     newDict = {}
     for item in list:
-        newDict[item['drink_id']] = item['rating']
+        newDict[item.drink_id] = item.rating
     return newDict
         
 def computeNearestNeighbor(userID):
     """creates a sorted list of items based on their distance to givenItem"""
-    
-    userRatings = query_db('select drink_id, rating from ratings where user_id = ?', [userID])
+    user = auth.User.filter(id = userID)
+    user = user.get()
+    userRatings = Rating.filter(user_id = user)
     userRatings = formatUserDict(userRatings)
     
-    list = query_db('select user_id from users where user_id != ?', [userID])
+    userList = auth.User.select()
 
     distances = []
-    for item in list:
-        currentRatings = query_db('select drink_id, rating from ratings where user_id = ?', [item['user_id']])
+    for item in userList:
+        if item.id == userID:
+          continue
+        currentRatings = Ratings.filter(user_id = item)
         currentRatings = formatUserDict(currentRatings)
 
         distance = manhattan(userRatings, currentRatings)
@@ -86,29 +118,40 @@ def recommendBasedOnUsers(userID):
     # first find nearest neighbor
         
     nearest = computeNearestNeighbor(userID)[0][1]
-
+    nearest = auth.User.filter(id = nearest)
+    nearest = nearest.get()
     recommendations = []
     # now find bands neighbor rated that user didn't
-    neighborRatings = query_db('select drink_id from ratings where user_id = ?', [nearest['user_id']])
-    userRatings = query_db('select drink_id from ratings where user_id = ?', [userID])
+    
+    neighborRatings = Ratings.filter(user_id = nearest)
+    user = auth.User.filter(id = userID)
+    user = user.get()
+    userRatings = Ratings.filter(user_id = user)
 
-    for drink in neighborRatings:
-        if not drink in userRatings:
-            recommendations.append(drink)
+    for rating in neighborRatings:
+        flag = false
+        for rating2 in userRatings:
+            if rating.id == rating2.id:
+              flag = true
+        if flag == false:
+          recommendations.append(rating.id)
     # using the fn sorted for variety - sort is more efficient
     return recommendations
 
 def recommendBasedOnDrink(drinkID):
     """creates a sorted list of items based on their distance to givenItem"""
+    drink = Drink.filter(id = drinkID)
+    drink = drink.get()
+    drinkRatings = formatDrinkDict(Ratings.filter(drink_id = drink))
+
     
-    drinkRatings = query_db('select user_id, rating from ratings where drink_id = ?', [drinkID])
-    drinkRatings = formatDrinkDict(drinkRatings)
-    list = query_db('select * from drinks where drink_id != ?', [drinkID])
+    list = drink.select()
 
     distances = []
     for item in list:
-        currentRatings = query_db('select user_id, rating from ratings where drink_id = ?', [item['drink_id']])
-        currentRatings = formatDrinkDict(currentRatings)
+        if item.id == drinkID:
+          continue
+        currentRatings = formatDrinkDict(Ratings.filter(drink_id = item))
         distance = manhattan(drinkRatings, currentRatings)
         distances.append((distance, item))
     # sort based on distance -- closest first
@@ -118,11 +161,14 @@ def recommendBasedOnDrink(drinkID):
 def computeDeviations():
 	#for each person in the data:
 	#    get their ratings
-  list = query_db('select user_id from users')
+  list = auth.User.select()
   
   distances = []
   for item in list:
-    ratings = formatUserDict(query_db('select drink_id, rating from ratings where user_id = ?', [item['user_id']]))
+    user = auth.User.filter(id=item.id)
+    user = user.get()
+    userRatings = formatUserDict(Ratings.filter(user_id = user))
+
     for (item, rating) in ratings.items():
         frequencies.setdefault(item, {})
         deviations.setdefault(item, {})
@@ -141,91 +187,36 @@ def computeDeviations():
 
     
 def recommendBasedOnItemSet(userID):
-	recommendations = {}
-	frequencies1 = {}
-	userRatings = formatUserDict(query_db('select drink_id, rating from ratings where user_id = ?', [userID]))
-	
-	computeDeviations()
-	
-	print "When you knock on my door"   
-	# for every item and rating in the user's recommendations
-	for (userItem, userRating) in userRatings.items():
-	    #for every item in our dataset that the user didn't rate
-	    print "LOL"
-	    for (diffItem, diffRatings) in deviations.items():
-	    	if(diffItem not in userRatings and userItem in deviations[diffItem]):
-				freq = frequencies[diffItem][userItem]
-				recommendations.setdefault(diffItem, 0.0)
-				frequencies1.setdefault(diffItem, 0)
-				# add to the running sum representing the numerator of the formula
-				recommendations[diffItem] += (diffRatings[userItem] + userRating) * freq
-				# keep a running sum of the frequency of diffitem
-				frequencies1[diffItem] += freq
-	print "We'll be waiting for you"  
-	recommendations =  [(k, v / frequencies1[k]) for (k, v) in recommendations.items()]
-	# finally sort and return
-	recommendations.sort(key=lambda artistTuple: artistTuple[1], reverse = True)
-	recommendations =  [k for (k, v) in recommendations]	 
-	
-	return recommendations
+  recommendations = {}
+  frequencies1 = {}
+  user = auth.User.filter(id=userID)
+  user = user.get()
+  userRatings = formatUserDict(Ratings.filter(user_id = user))
 
-def connect_db():
-    """Returns a new connection to the database."""
-    return sqlite3.connect(app.config['DATABASE'])
+  computeDeviations()
 
+  # for every item and rating in the user's recommendations
+  for (userItem, userRating) in userRatings.items():
+      #for every item in our dataset that the user didn't rate
+      for (diffItem, diffRatings) in deviations.items():
+        if(diffItem not in userRatings and userItem in deviations[diffItem]):
+          freq = frequencies[diffItem][userItem]
+          recommendations.setdefault(diffItem, 0.0)
+          frequencies1.setdefault(diffItem, 0)
+          # add to the running sum representing the numerator of the formula
+          recommendations[diffItem] += (diffRatings[userItem] + userRating) * freq
+          # keep a running sum of the frequency of diffitem
+          frequencies1[diffItem] += freq
+  recommendations =  [(k, v / frequencies1[k]) for (k, v) in recommendations.items()]
+  # finally sort and return
+  recommendations.sort(key=lambda artistTuple: artistTuple[1], reverse = True)
+  recommendations =  [k for (k, v) in recommendations]	 
 
-def init_db():
-    """Creates the database tables."""
-    with closing(connect_db()) as db:
-        with app.open_resource('schema.sql') as f:
-            db.cursor().executescript(f.read())
-        db.commit()
-
-
-def query_db(query, args=(), one=False):
-    """Queries the database and returns a list of dictionaries."""
-    cur = g.db.execute(query, args)
-    rv = [dict((cur.description[idx][0], value)
-               for idx, value in enumerate(row)) for row in cur.fetchall()]
-    return (rv[0] if rv else None) if one else rv
-
-
-def get_user_id(username):
-    """Convenience method to look up the id for a username."""
-    rv = g.db.execute('select user_id from users where username = ?',
-                       [username]).fetchone()
-    return rv[0] if rv else None
-
+  return recommendations
 
 def format_datetime(timestamp):
     """Format a timestamp for display."""
     return datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d @ %H:%M')
-
-
-def gravatar_url(email, size=80):
-    """Return the gravatar image for the given email address."""
-    return 'http://www.gravatar.com/avatar/%s?d=identicon&s=%d' % \
-        (md5(email.strip().lower().encode('utf-8')).hexdigest(), size)
-
-
-@app.before_request
-def before_request():
-    """Make sure we are connected to the database each request and look
-    up the current user so that we know he's there.
-    """
-    g.db = connect_db()
-    g.user = None
-    if 'user_id' in session:
-        g.user = query_db('select * from users where user_id = ?',
-                          [session['user_id']], one=True)
-
-
-@app.teardown_request
-def teardown_request(exception):
-    """Closes the database again at the end of the request."""
-    if hasattr(g, 'db'):
-        g.db.close()
-
 
 @app.route('/')
 def recommendations():
@@ -233,47 +224,53 @@ def recommendations():
     redirect to the public recommendations.  This recommendations shows the user's
     recommendations as well as all the recommendations of followed users.
     """
-    if not g.user:
+    user = auth.get_logged_in_user()
+    if not user:
         return redirect(url_for('public_recommendations'))
-    recAlg = recommendBasedOnUsers(session['user_id'])
-    recAlg2 = recommendBasedOnItemSet(session['user_id'])
+    recAlg = recommendBasedOnUsers(user.id)
+    recAlg2 = recommendBasedOnItemSet(user.id)
     recs = []
     recs2 = []
     
     for recommendation in recAlg:
-        recs.extend(query_db('select name, description, drink_id from drinks where drink_id = ?', [recommendation['drink_id']]))
+        query = Drinks.filter(id=recommendation['drink_id'])
+        recs.extend(query)
     for recommendation in recAlg2:
-        recs2.extend(query_db('select name, description, drink_id from drinks where drink_id = ?', [recommendation]))
+       query = Drinks.filter(id=recommendation['drink_id'])
+       recs2.extend(query)
     return render_template('recommendations.html', recommendations=recs, recommendations2=recs2)
 
 
 @app.route('/public')
 def public_recommendations():
     """Displays a random selection of highly rated drinks."""
-    recs = query_db('select name, description, avg(rating), drink_id from ratings natural join drinks group by rating order by rating desc')
+    recs = Drink.select({
+      Drink:['*'],
+      Rating:[Sum('rating'),Count('rating')],
+    }).group_by(Drink).join(Rating)
     return render_template('recommendations.html', recommendations=recs)
 
 @app.route('/all')
 def all_drinks():
     """Displays a random selection of highly rated drinks."""
-    recs = query_db('select name, description, drink_id from drinks')
+    recs = Drink.select()
     return render_template('recommendations.html', recommendations=recs)
 
 @app.route('/user/<username>')
 def user_recommendations(username):
     """Displays recommendations for a user."""
-    profile_user = query_db('select * from users where username = ?',
-                            [username], one=True)
+    profile_user = auth.User(username=username)
+    profile_user = profile_user.get()
     if profile_user is None:
         abort(404)
-    recs = recommendBasedOnUsers(profile_user.user_id)
+    recs = recommendBasedOnUsers(profile_user.id)
     return render_template('recommendations.html', recommendations=recs,
             profile_user=profile_user)
             
 @app.route('/drink/<drink_id>')
 def display_drink(drink_id):
-    drink = query_db('select * from drinks where drink_id = ?',
-                            [drink_id], one=True)
+    drink = Drink.filter(id=drink_id)
+    drink = drink.get()
     recs = recommendBasedOnDrink(drink_id)                      
     if drink is None:
         abort(404)
@@ -281,98 +278,67 @@ def display_drink(drink_id):
 
 
 @app.route('/drink/<drink_id>/rate/<rating>')
+@auth.login_required
 def rate(drink_id, rating):
     """ Rate the given drink for the user """
-    if not g.user:
-        abort(401)
-    if drink_id is None:
-        abort(404)
-    g.db.execute('insert into ratings (user_id, drink_id, rating) values (?, ?, ?)',
-                [session['user_id'], drink_id, rating])
-    g.db.commit()
+    drink_id = Drink.filter(id = drink_id)
+    rating = Rating.create(
+      user_id = auth.get_logged_in_user(),
+      drink_id = drink_id.get(),
+      rating = rating,
+    )
     flash('Rating has been successfully made!')
     return redirect(url_for('recommendations'))
-
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    """Logs the user in."""
-    if g.user:
-        return redirect(url_for('recommendations'))
-    error = None
-    if request.method == 'POST':
-        user = query_db('''select * from users where
-            username = ?''', [request.form['username']], one=True)
-        if user is None:
-            error = 'Invalid username'
-        elif not check_password_hash(user['pw_hash'],
-                                     request.form['password']):
-            error = 'Invalid password'
-        else:
-            flash('You were logged in')
-            session['user_id'] = user['user_id']
-            return redirect(url_for('recommendations'))
-    return render_template('login.html', error=error)
-
 
 @app.route('/add_drink', methods=['GET', 'POST'])
 def add_drink():
     error = None
-    if request.method == 'POST':
+    if request.method == 'POST' and request.form['name']:
         if not request.form['name']:
             error = 'You have to enter a name'
         elif not request.form['description']:
             error = 'You have to enter a description'
+        elif not request.form['photoURL']:
+            error = 'You have to enter a photo URL'
         else:
-            g.db.execute('''insert into drinks (
-                name, description) values (?, ?)''',
-                [request.form['name'], request.form['description']])
-            g.db.commit()
+            drink = Drink.create(
+              name = request.form['name'],
+              description = request.form['description'],
+              photoURL = request.form['photoURL'],
+            )
             flash('You added a drink you alcoholic!!!!')
             return redirect(url_for('recommendations'))
     return render_template('add_drink.html', error=error)
     
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """Registers the user."""
-    if g.user:
-        return redirect(url_for('recommendations'))
     error = None
-    if request.method == 'POST':
-        if not request.form['username']:
-            error = 'You have to enter a username'
-        elif not request.form['email'] or \
-                 '@' not in request.form['email']:
-            error = 'You have to enter a valid email address'
-        elif not request.form['password']:
-            error = 'You have to enter a password'
-        elif request.form['password'] != request.form['password2']:
-            error = 'The two passwords do not match'
-        elif get_user_id(request.form['username']) is not None:
-            error = 'The username is already taken'
-        else:
-            g.db.execute('''insert into users (
-                username, email, pw_hash) values (?, ?, ?)''',
-                [request.form['username'], request.form['email'],
-                 generate_password_hash(request.form['password'])])
-            g.db.commit()
-            flash('You were successfully registered and can login now')
-            return redirect(url_for('login'))
+    if request.method == 'POST' and request.form['username']:
+        try:
+            user = auth.User.get(username=request.form['username'])
+            flash('That username is already taken')
+        except auth.User.DoesNotExist:
+            if request.form['password'] != request.form['password2']:
+              error = 'The two passwords do not match'
+            user = auth.User(
+                username=request.form['username'],
+                email=request.form['email'],
+                join_date=datetime.now()
+            )
+            user.set_password(request.form['password'])
+            user.save()
+            
+            auth.login_user(user)
+            return redirect(url_for('recommendations'))
+
     return render_template('register.html', error=error)
-
-
-@app.route('/logout')
-def logout():
-    """Logs the user out."""
-    flash('You were logged out')
-    session.pop('user_id', None)
-    return redirect(url_for('public_recommendations'))
-
-
+    
 # add some filters to jinja
 app.jinja_env.filters['datetimeformat'] = format_datetime
-app.jinja_env.filters['gravatar'] = gravatar_url
 
 
 if __name__ == '__main__':
+    auth.User.create_table(fail_silently=True)
+    Rating.create_table(fail_silently=True)
+    Drink.create_table(fail_silently=True)
     app.run()

@@ -1,5 +1,10 @@
-Flask==0.8
+Flask==0.7.2
+Flask-peewee
+peewee
 Jinja2==2.6
-Werkzeug==0.8.3
-distribute==0.6.24
+SQLAlchemy==0.7.2
+Werkzeug==0.7.1
+gunicorn==0.13.3
+psycopg2==2.4.2
+simplejson==2.2.1
 wsgiref==0.1.2

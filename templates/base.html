@@ -33,7 +33,8 @@
     </section>
   {% endwith %}
   <section id="body">
-  {% block body %}{% endblock %}
+   <h2>{% block content_title %}{% endblock %}</h2>
+ {% block content %}{% endblock %}
   </section>
   <footer>
     &copy; 2012 Rita Cheng and David Clarke |
